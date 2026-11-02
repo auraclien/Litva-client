@@ -4,7 +4,6 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -29,20 +28,19 @@ public class LitvaClient implements ClientModInitializer {
     public static boolean showHud = true;
     public static Entity targetEntity = null;
 
+    // Координаты HUD
     public static int hudWatermarkX = 5, hudWatermarkY = 5;
     public static int hudInfoX = 5, hudInfoY = 300;
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
-    
-    public static boolean draggingWatermark = false, draggingInfo = false, draggingTarget = false;
-    public static double dragOffsetX = 0, dragOffsetY = 0;
 
     @Override
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.world == null) return;
 
+            // Открытие меню на Right Shift
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed && client.currentScreen == null) {
                     client.setScreen(new LitvaMenu());
@@ -50,31 +48,6 @@ public class LitvaClient implements ClientModInitializer {
                 }
             } else {
                 wasRightShiftPressed = false;
-            }
-
-            // Перетаскивание HUD в чате
-            if (client.currentScreen instanceof ChatScreen) {
-                double mouseX = client.mouse.getX() * (double)client.getWindow().getScaledWidth() / (double)client.getWindow().getWidth();
-                double mouseY = client.mouse.getY() * (double)client.getWindow().getScaledHeight() / (double)client.getWindow().getHeight();
-
-                if (GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS) {
-                    if (draggingWatermark) {
-                        hudWatermarkX = (int) (mouseX - dragOffsetX);
-                        hudWatermarkY = (int) (mouseY - dragOffsetY);
-                    }
-                    if (draggingInfo) {
-                        hudInfoX = (int) (mouseX - dragOffsetX);
-                        hudInfoY = (int) (mouseY - dragOffsetY);
-                    }
-                    if (draggingTarget && targetEntity != null) {
-                        hudTargetX = (int) (mouseX - dragOffsetX);
-                        hudTargetY = (int) (mouseY - dragOffsetY);
-                    }
-                } else {
-                    draggingWatermark = false;
-                    draggingInfo = false;
-                    draggingTarget = false;
-                }
             }
 
             boolean isCooldownReady = client.player.getAttackCooldownProgress(0.5f) >= 1.0f;
@@ -91,7 +64,6 @@ public class LitvaClient implements ClientModInitializer {
                             if (!itemName.contains("sword") && !itemName.contains("axe")) return;
                         }
                         
-                        // Удар
                         client.interactionManager.attackEntity(client.player, target);
                         client.player.swingHand(Hand.MAIN_HAND);
                     }
@@ -123,7 +95,6 @@ public class LitvaClient implements ClientModInitializer {
                         if (!itemName.contains("sword") && !itemName.contains("axe")) return;
                     }
 
-                    // Удар
                     client.interactionManager.attackEntity(client.player, closestTarget);
                     client.player.swingHand(Hand.MAIN_HAND);
                 } else {

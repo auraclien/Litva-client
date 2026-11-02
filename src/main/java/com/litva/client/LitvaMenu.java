@@ -3,17 +3,14 @@ package com.litva.client;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 
 public class LitvaMenu extends Screen {
     private final int widthM = 480;
     private final int heightM = 280;
     private int x, y;
 
-    // Какая вкладка открыта: 0 - Combat, 1 - Visuals, 2 - Interface
-    private int selectedTab = 0;
-    // Какая функция выбрана (0 - TriggerBot, 1 - KillAura)
-    private int selectedModule = 0;
+    private int selectedTab = 0; // 0 - Бой, 1 - Визуал, 2 - Интерфейс
+    private int selectedModule = 0; // 0 - TriggerBot, 1 - KillAura
 
     public LitvaMenu() {
         super(Text.literal("Litva Client"));
@@ -28,50 +25,49 @@ public class LitvaMenu extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Блюр
         this.applyBlur();
-        
-        // Главный фон меню (черный)
         context.fill(x, y, x + widthM, y + heightM, 0xEE000000);
 
-        // Линии колонок
+        // Разделители (серые полоски)
         context.drawVerticalLine(x + 100, y + 30, y + heightM, 0xFF333333);
         context.drawVerticalLine(x + 300, y + 30, y + heightM, 0xFF333333);
 
-        // Заголовок
         context.drawTextWithShadow(this.textRenderer, "Litva Client", x + 10, y + 10, 0xFF5555FF);
 
-        // --- ЛЕВАЯ КОЛОНКА (Категории) ---
-        drawTab(context, "Combat", x + 10, y + 40, 0, mouseX, mouseY);
-        drawTab(context, "Visuals", x + 10, y + 65, 1, mouseX, mouseY);
-        drawTab(context, "Interface", x + 10, y + 90, 2, mouseX, mouseY);
+        // Левая колонка
+        drawTab(context, "Бой", x + 10, y + 40, 0, mouseX, mouseY);
+        drawTab(context, "Визуал", x + 10, y + 65, 1, mouseX, mouseY);
+        drawTab(context, "Интерфейс", x + 10, y + 90, 2, mouseX, mouseY);
 
-        // --- ЦЕНТРАЛЬНАЯ КОЛОНКА (Модули) ---
+        // Центральная колонка
         if (selectedTab == 0) {
-            drawModule(context, "TriggerBot", x + 110, y + 40, 0, mouseX, mouseY);
-            drawModule(context, "KillAura", x + 110, y + 65, 1, mouseX, mouseY);
+            drawModule(context, "ТриггерБот", x + 110, y + 40, 0, mouseX, mouseY);
+            drawModule(context, "КиллАура", x + 110, y + 65, 1, mouseX, mouseY);
+        } else if (selectedTab == 1) {
+            drawToggle(context, "Показывать HUD", LitvaClient.showHud, x + 110, y + 40);
         }
 
-        // --- ПРАВАЯ КОЛОНКА (Настройки) ---
+        // Правая колонка
         if (selectedTab == 0) {
             if (selectedModule == 0) {
-                drawSettingText(context, "TriggerBot Settings", x + 310, y + 40);
-                drawToggle(context, "Enabled", LitvaClient.triggerEnabled, x + 310, y + 60);
-                drawToggle(context, "Hit Players", LitvaClient.hitPlayers, x + 310, y + 85);
-                drawToggle(context, "Hit Mobs", LitvaClient.hitMobs, x + 310, y + 110);
-                drawToggle(context, "Only Weapons", LitvaClient.onlyWeapons, x + 310, y + 135);
-                drawToggle(context, "Only Crits", LitvaClient.onlyCrits, x + 310, y + 160);
+                drawText(context, "Настройки ТриггерБота", x + 310, y + 40);
+                drawToggle(context, "Включен", LitvaClient.triggerEnabled, x + 310, y + 60);
+                drawToggle(context, "Бить игроков", LitvaClient.hitPlayers, x + 310, y + 85);
+                drawToggle(context, "Бить мобов", LitvaClient.hitMobs, x + 310, y + 110);
+                drawToggle(context, "Только оружие", LitvaClient.onlyWeapons, x + 310, y + 135);
+                drawToggle(context, "Только криты", LitvaClient.onlyCrits, x + 310, y + 160);
             } else if (selectedModule == 1) {
-                drawSettingText(context, "KillAura Settings", x + 310, y + 40);
-                drawToggle(context, "Enabled", LitvaClient.killAuraEnabled, x + 310, y + 60);
-                drawToggle(context, "Hit Players", LitvaClient.kaHitPlayers, x + 310, y + 85);
-                drawToggle(context, "Hit Mobs", LitvaClient.kaHitMobs, x + 310, y + 110);
-                drawSettingText(context, "Range: " + LitvaClient.kaRange, x + 310, y + 135);
+                drawText(context, "Настройки КиллАуры", x + 310, y + 40);
+                drawToggle(context, "Включена", LitvaClient.killAuraEnabled, x + 310, y + 60);
+                drawToggle(context, "Бить игроков", LitvaClient.kaHitPlayers, x + 310, y + 85);
+                drawToggle(context, "Бить мобов", LitvaClient.kaHitMobs, x + 310, y + 110);
+                drawToggle(context, "Только оружие", LitvaClient.kaOnlyWeapons, x + 310, y + 135);
+                drawToggle(context, "Только криты", LitvaClient.kaOnlyCrits, x + 310, y + 160);
+                drawText(context, "Радиус: " + LitvaClient.kaRange, x + 310, y + 185);
             }
         }
     }
 
-    // Отрисовка вкладки (слева)
     private void drawTab(DrawContext context, String text, int tx, int ty, int id, int mouseX, int mouseY) {
         boolean hovered = mouseX >= tx && mouseX <= tx + 80 && mouseY >= ty && mouseY <= ty + 20;
         if (selectedTab == id) {
@@ -82,7 +78,6 @@ public class LitvaMenu extends Screen {
         }
     }
 
-    // Отрисовка модуля (в центре)
     private void drawModule(DrawContext context, String text, int tx, int ty, int id, int mouseX, int mouseY) {
         boolean hovered = mouseX >= tx && mouseX <= tx + 180 && mouseY >= ty && mouseY <= ty + 20;
         if (selectedModule == id) {
@@ -93,12 +88,10 @@ public class LitvaMenu extends Screen {
         }
     }
 
-    // Отрисовка текста настроек
-    private void drawSettingText(DrawContext context, String text, int tx, int ty) {
+    private void drawText(DrawContext context, String text, int tx, int ty) {
         context.drawTextWithShadow(this.textRenderer, text, tx, ty, 0xFFFFFF);
     }
 
-    // Отрисовка переключателя (квадратик)
     private void drawToggle(DrawContext context, String text, boolean enabled, int tx, int ty) {
         context.drawTextWithShadow(this.textRenderer, text, tx, ty, 0xAAAAAA);
         int color = enabled ? 0xFFAA0000 : 0xFF333333;
@@ -107,20 +100,19 @@ public class LitvaMenu extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        // Левая колонка
+        // Вкладки
         if (mouseX >= x + 10 && mouseX <= x + 90) {
             if (mouseY >= y + 40 && mouseY <= y + 60) selectedTab = 0;
             if (mouseY >= y + 65 && mouseY <= y + 85) selectedTab = 1;
             if (mouseY >= y + 90 && mouseY <= y + 110) selectedTab = 2;
         }
-        // Центральная колонка
+        // Модули
         if (mouseX >= x + 110 && mouseX <= x + 290 && selectedTab == 0) {
             if (mouseY >= y + 40 && mouseY <= y + 60) selectedModule = 0;
             if (mouseY >= y + 65 && mouseY <= y + 85) selectedModule = 1;
         }
-
-        // Правая колонка (Настройки) - ЛКМ для переключения
-        if (selectedTab == 0 && button == 0) { // Левая кнопка
+        // Настройки
+        if (selectedTab == 0 && button == 0) {
             if (selectedModule == 0) {
                 if (checkBox(mouseX, mouseY, x + 310, y + 60)) LitvaClient.triggerEnabled = !LitvaClient.triggerEnabled;
                 if (checkBox(mouseX, mouseY, x + 310, y + 85)) LitvaClient.hitPlayers = !LitvaClient.hitPlayers;
@@ -131,12 +123,15 @@ public class LitvaMenu extends Screen {
                 if (checkBox(mouseX, mouseY, x + 310, y + 60)) LitvaClient.killAuraEnabled = !LitvaClient.killAuraEnabled;
                 if (checkBox(mouseX, mouseY, x + 310, y + 85)) LitvaClient.kaHitPlayers = !LitvaClient.kaHitPlayers;
                 if (checkBox(mouseX, mouseY, x + 310, y + 110)) LitvaClient.kaHitMobs = !LitvaClient.kaHitMobs;
-                // Изменение радиуса (по клику)
-                if (mouseX >= x + 310 && mouseX <= x + 430 && mouseY >= y + 135 && mouseY <= y + 150) {
+                if (checkBox(mouseX, mouseY, x + 310, y + 135)) LitvaClient.kaOnlyWeapons = !LitvaClient.kaOnlyWeapons;
+                if (checkBox(mouseX, mouseY, x + 310, y + 160)) LitvaClient.kaOnlyCrits = !LitvaClient.kaOnlyCrits;
+                if (mouseX >= x + 310 && mouseX <= x + 430 && mouseY >= y + 185 && mouseY <= y + 200) {
                     LitvaClient.kaRange += 0.5f;
                     if (LitvaClient.kaRange > 6.0f) LitvaClient.kaRange = 2.0f;
                 }
             }
+        } else if (selectedTab == 1 && button == 0) {
+             if (checkBox(mouseX, mouseY, x + 110, y + 40)) LitvaClient.showHud = !LitvaClient.showHud;
         }
 
         return super.mouseClicked(mouseX, mouseY, button);
@@ -150,4 +145,4 @@ public class LitvaMenu extends Screen {
     public boolean shouldPause() {
         return false;
     }
-}
+}    

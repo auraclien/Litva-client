@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "id": "aurafinal",
+  "id": "litvaclient",
   "version": "1.0.0",
-  "name": "Aura Final",
-  "description": "My client",
+  "name": "Litva Client",
+  "description": "My epic client",
   "authors": ["Me"],
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
     "client": [
-      "com.aura.finalclient.AuraClient"
+      "com.litva.client.LitvaClient"
     ]
   },
   "depends": {

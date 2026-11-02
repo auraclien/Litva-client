@@ -12,6 +12,7 @@ import net.minecraft.util.hit.EntityHitResult;
 import org.lwjgl.glfw.GLFW;
 
 public class LitvaClient implements ClientModInitializer {
+    // Настройки
     public static boolean triggerEnabled = true;
     public static boolean hitPlayers = true;
     public static boolean hitMobs = true;
@@ -26,19 +27,21 @@ public class LitvaClient implements ClientModInitializer {
     public static float kaRange = 3.0f;
 
     public static boolean showHud = true;
-    
-    // Переменная для хранения текущей цели (для HUD)
     public static Entity targetEntity = null;
 
+    // Координаты для перемещения HUD
+    public static int hudWatermarkX = 5, hudWatermarkY = 5;
+    public static int hudInfoX = 5, hudInfoY = 300;
+    public static int hudTargetX = 200, hudTargetY = 200;
+
     private boolean wasRightShiftPressed = false;
-    private int jumpTimer = 0; // Таймер для критов
+    private int jumpTimer = 0; 
 
     @Override
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.world == null) return;
 
-            // Открытие меню
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed && client.currentScreen == null) {
                     client.setScreen(new LitvaMenu());
@@ -51,11 +54,10 @@ public class LitvaClient implements ClientModInitializer {
             boolean isCooldownReady = client.player.getAttackCooldownProgress(0.5f) >= 1.0f;
             if (jumpTimer > 0) jumpTimer--;
 
-            // --- ЛОГИКА TRIGGERBOT ---
             if (triggerEnabled && isCooldownReady) {
                 if (client.crosshairTarget instanceof EntityHitResult hitResult) {
                     Entity target = hitResult.getEntity();
-                    targetEntity = target; // Запоминаем для HUD
+                    targetEntity = target;
                     
                     if (isValidTarget(client.player, target, hitPlayers, hitMobs)) {
                         if (onlyWeapons) {
@@ -64,11 +66,10 @@ public class LitvaClient implements ClientModInitializer {
                         }
                         
                         if (onlyCrits) {
-                            // Мобильный фикс критов: прыгаем и бьем на следующем тике
                             if (client.player.isOnGround() && jumpTimer == 0) {
                                 client.player.jump();
-                                jumpTimer = 2; 
-                            } else if (jumpTimer == 1) {
+                                jumpTimer = 3; 
+                            } else if (jumpTimer == 2) { // Бьем в момент падения
                                 client.interactionManager.attackEntity(client.player, target);
                                 client.player.swingHand(Hand.MAIN_HAND);
                                 jumpTimer = 0;
@@ -83,7 +84,6 @@ public class LitvaClient implements ClientModInitializer {
                 }
             }
 
-            // --- ЛОГИКА KILLAURA ---
             if (killAuraEnabled && isCooldownReady) {
                 Entity closestTarget = null;
                 double closestDist = kaRange;
@@ -99,7 +99,7 @@ public class LitvaClient implements ClientModInitializer {
                 }
 
                 if (closestTarget != null) {
-                    targetEntity = closestTarget; // Запоминаем для HUD
+                    targetEntity = closestTarget;
                     
                     if (kaOnlyWeapons) {
                         String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
@@ -109,8 +109,8 @@ public class LitvaClient implements ClientModInitializer {
                     if (kaOnlyCrits) {
                         if (client.player.isOnGround() && jumpTimer == 0) {
                             client.player.jump();
-                            jumpTimer = 2; 
-                        } else if (jumpTimer == 1) {
+                            jumpTimer = 3; 
+                        } else if (jumpTimer == 2) {
                             client.interactionManager.attackEntity(client.player, closestTarget);
                             client.player.swingHand(Hand.MAIN_HAND);
                             jumpTimer = 0;

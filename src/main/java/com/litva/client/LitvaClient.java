@@ -8,6 +8,7 @@ import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import org.lwjgl.glfw.GLFW;
@@ -29,17 +30,12 @@ public class LitvaClient implements ClientModInitializer {
     public static boolean showHud = true;
     public static Entity targetEntity = null;
 
-    // Координаты HUD
     public static int hudWatermarkX = 5, hudWatermarkY = 5;
     public static int hudInfoX = 5, hudInfoY = 300;
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
     private long lastAttackTime = 0;
-
-    // Переменные для перетаскивания
-    public static boolean draggingWatermark = false, draggingInfo = false, draggingTarget = false;
-    public static double dragOffsetX = 0, dragOffsetY = 0;
 
     @Override
     public void onInitializeClient() {
@@ -56,29 +52,12 @@ public class LitvaClient implements ClientModInitializer {
                 wasRightShiftPressed = false;
             }
 
-            // Логика перетаскивания (работает только когда открыт чат)
+            // --- УПРАВЛЕНИЕ HUD СТРЕЛОЧКАМИ В ЧАТЕ (для телефонов) ---
             if (client.currentScreen instanceof ChatScreen) {
-                double mouseX = client.mouse.getX() * (double)client.getWindow().getScaledWidth() / (double)client.getWindow().getWidth();
-                double mouseY = client.mouse.getY() * (double)client.getWindow().getScaledHeight() / (double)client.getWindow().getHeight();
-
-                if (GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS) {
-                    if (draggingWatermark) {
-                        hudWatermarkX = (int) (mouseX - dragOffsetX);
-                        hudWatermarkY = (int) (mouseY - dragOffsetY);
-                    }
-                    if (draggingInfo) {
-                        hudInfoX = (int) (mouseX - dragOffsetX);
-                        hudInfoY = (int) (mouseY - dragOffsetY);
-                    }
-                    if (draggingTarget && targetEntity != null) {
-                        hudTargetX = (int) (mouseX - dragOffsetX);
-                        hudTargetY = (int) (mouseY - dragOffsetY);
-                    }
-                } else {
-                    draggingWatermark = false;
-                    draggingInfo = false;
-                    draggingTarget = false;
-                }
+                if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS) hudWatermarkY -= 1;
+                if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS) hudWatermarkY += 1;
+                if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS) hudWatermarkX -= 1;
+                if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS) hudWatermarkX += 1;
             }
 
             boolean isCooldownReady = client.player.getAttackCooldownProgress(0.5f) >= 1.0f;
@@ -97,14 +76,11 @@ public class LitvaClient implements ClientModInitializer {
                         }
                         
                         if (onlyCrits) {
-                            if (client.player.isOnGround()) {
-                                client.player.jump();
-                                lastAttackTime = currentTime;
-                            } else if (currentTime - lastAttackTime > 150 && currentTime - lastAttackTime < 300) {
-                                client.interactionManager.attackEntity(client.player, target);
-                                client.player.swingHand(Hand.MAIN_HAND);
-                                lastAttackTime = 0; 
-                            }
+                            // СПУФ КРИТОВ: Отправляем серверу, что мы упали
+                            client.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
+                                    client.player.getX(), client.player.getY() + 0.00001, client.player.getZ(), false));
+                            client.interactionManager.attackEntity(client.player, target);
+                            client.player.swingHand(Hand.MAIN_HAND);
                         } else {
                             client.interactionManager.attackEntity(client.player, target);
                             client.player.swingHand(Hand.MAIN_HAND);
@@ -139,14 +115,11 @@ public class LitvaClient implements ClientModInitializer {
                     }
 
                     if (kaOnlyCrits) {
-                        if (client.player.isOnGround()) {
-                            client.player.jump();
-                            lastAttackTime = currentTime;
-                        } else if (currentTime - lastAttackTime > 150 && currentTime - lastAttackTime < 300) {
-                            client.interactionManager.attackEntity(client.player, closestTarget);
-                            client.player.swingHand(Hand.MAIN_HAND);
-                            lastAttackTime = 0;
-                        }
+                        // СПУФ КРИТОВ
+                        client.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
+                                client.player.getX(), client.player.getY() + 0.00001, client.player.getZ(), false));
+                        client.interactionManager.attackEntity(client.player, closestTarget);
+                        client.player.swingHand(Hand.MAIN_HAND);
                     } else {
                         client.interactionManager.attackEntity(client.player, closestTarget);
                         client.player.swingHand(Hand.MAIN_HAND);

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "aurafinal",
+  "version": "1.0.0",
+  "name": "Aura Final",
+  "description": "My client",
+  "authors": ["Me"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.aura.finalclient.AuraClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

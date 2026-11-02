@@ -12,7 +12,6 @@ import net.minecraft.util.hit.EntityHitResult;
 import org.lwjgl.glfw.GLFW;
 
 public class LitvaClient implements ClientModInitializer {
-    // Настройки
     public static boolean triggerEnabled = true;
     public static boolean hitPlayers = true;
     public static boolean hitMobs = true;
@@ -29,13 +28,12 @@ public class LitvaClient implements ClientModInitializer {
     public static boolean showHud = true;
     public static Entity targetEntity = null;
 
-    // Координаты для перемещения HUD
     public static int hudWatermarkX = 5, hudWatermarkY = 5;
     public static int hudInfoX = 5, hudInfoY = 300;
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
-    private int jumpTimer = 0; 
+    private long lastAttackTime = 0;
 
     @Override
     public void onInitializeClient() {
@@ -52,8 +50,9 @@ public class LitvaClient implements ClientModInitializer {
             }
 
             boolean isCooldownReady = client.player.getAttackCooldownProgress(0.5f) >= 1.0f;
-            if (jumpTimer > 0) jumpTimer--;
+            long currentTime = System.currentTimeMillis();
 
+            // --- ЛОГИКА TRIGGERBOT ---
             if (triggerEnabled && isCooldownReady) {
                 if (client.crosshairTarget instanceof EntityHitResult hitResult) {
                     Entity target = hitResult.getEntity();
@@ -66,13 +65,14 @@ public class LitvaClient implements ClientModInitializer {
                         }
                         
                         if (onlyCrits) {
-                            if (client.player.isOnGround() && jumpTimer == 0) {
+                            // Умные криты: прыгаем, ждем 150мс и бьем
+                            if (client.player.isOnGround()) {
                                 client.player.jump();
-                                jumpTimer = 3; 
-                            } else if (jumpTimer == 2) { // Бьем в момент падения
+                                lastAttackTime = currentTime;
+                            } else if (currentTime - lastAttackTime > 150 && currentTime - lastAttackTime < 300) {
                                 client.interactionManager.attackEntity(client.player, target);
                                 client.player.swingHand(Hand.MAIN_HAND);
-                                jumpTimer = 0;
+                                lastAttackTime = 0; // Сбрасываем
                             }
                         } else {
                             client.interactionManager.attackEntity(client.player, target);
@@ -84,6 +84,7 @@ public class LitvaClient implements ClientModInitializer {
                 }
             }
 
+            // --- ЛОГИКА KILLAURA ---
             if (killAuraEnabled && isCooldownReady) {
                 Entity closestTarget = null;
                 double closestDist = kaRange;
@@ -107,13 +108,13 @@ public class LitvaClient implements ClientModInitializer {
                     }
 
                     if (kaOnlyCrits) {
-                        if (client.player.isOnGround() && jumpTimer == 0) {
+                        if (client.player.isOnGround()) {
                             client.player.jump();
-                            jumpTimer = 3; 
-                        } else if (jumpTimer == 2) {
+                            lastAttackTime = currentTime;
+                        } else if (currentTime - lastAttackTime > 150 && currentTime - lastAttackTime < 300) {
                             client.interactionManager.attackEntity(client.player, closestTarget);
                             client.player.swingHand(Hand.MAIN_HAND);
-                            jumpTimer = 0;
+                            lastAttackTime = 0;
                         }
                     } else {
                         client.interactionManager.attackEntity(client.player, closestTarget);

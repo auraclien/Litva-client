@@ -20,14 +20,12 @@ import java.util.Comparator;
 import java.util.List;
 
 public class LitvaClient implements ClientModInitializer {
-    // Настройки TriggerBot
     public static boolean triggerEnabled = true;
     public static boolean hitPlayers = true;
     public static boolean hitMobs = true;
     public static boolean onlyWeapons = false;
     public static boolean onlyCrits = false;
     
-    // Настройки KillAura (всегда включена, бьет критами)
     public static boolean killAuraEnabled = false;
     public static boolean kaHitPlayers = true;
     public static boolean kaHitMobs = true;
@@ -37,7 +35,6 @@ public class LitvaClient implements ClientModInitializer {
     public static boolean showHud = true;
     public static Entity targetEntity = null;
 
-    // Координаты HUD
     public static int hudWatermarkX = 5, hudWatermarkY = 5;
     public static int hudInfoX = 5, hudInfoY = 300;
     public static int hudTargetX = 200, hudTargetY = 200;
@@ -49,9 +46,8 @@ public class LitvaClient implements ClientModInitializer {
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.world == null) return;
-            if (client.currentScreen != null) return; // Не работаем, если открыто меню/чат
+            if (client.currentScreen != null) return;
 
-            // Открытие меню на Right Shift
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed) {
                     client.setScreen(new LitvaMenu());
@@ -61,7 +57,6 @@ public class LitvaClient implements ClientModInitializer {
                 wasRightShiftPressed = false;
             }
 
-            // --- ЛОГИКА TRIGGERBOT ---
             if (triggerEnabled) {
                 boolean isCooldownReady = client.player.getAttackCooldownProgress(0.5f) >= 1.0f;
                 if (isCooldownReady) {
@@ -94,11 +89,10 @@ public class LitvaClient implements ClientModInitializer {
                 }
             }
 
-            // --- ЛОГИКА KILLAURA (Твоя новая) ---
             if (killAuraEnabled) {
                 if (jumpCooldown > 0) jumpCooldown--;
                 
-                Box searchBox = client.player.getBoundingBox().expand(8.0); // Ищем в радиусе 8 блоков
+                Box searchBox = client.player.getBoundingBox().expand(8.0);
                 List<LivingEntity> targets = client.world.getEntitiesByClass(LivingEntity.class, searchBox,
                         e -> e != client.player && e.isAlive() && !e.isSpectator()
                                 && ((e instanceof PlayerEntity && kaHitPlayers) || (e instanceof MobEntity && kaHitMobs)));
@@ -112,7 +106,7 @@ public class LitvaClient implements ClientModInitializer {
                     double distSq = client.player.squaredDistanceTo(target);
                     double attackRangeSq = kaRange * kaRange;
 
-                    // Наводка (Aim) - доворачиваем камеру
+                    // Наводка
                     Vec3d aimPoint = target.getPos().add(0, target.getHeight() * 0.85, 0);
                     Vec3d diff = aimPoint.subtract(client.player.getEyePos());
                     double distXZ = Math.sqrt(diff.x * diff.x + diff.z * diff.z);
@@ -121,15 +115,14 @@ public class LitvaClient implements ClientModInitializer {
                     client.player.setYaw(yaw);
                     client.player.setPitch(MathHelper.clamp(pitch, -90f, 90f));
 
-                    // Бежим за целью
+                    // Имитация нажатия W (идем вперед)
                     if (distSq > attackRangeSq) {
-                        followTarget(client.player, target);
+                        client.options.forwardKey.setPressed(true);
                     } else {
-                        client.player.setForwardSpeed(0f);
-                        client.player.setSidewaysSpeed(0f);
+                        client.options.forwardKey.setPressed(false);
                     }
 
-                    // Атака только критом
+                    // Атака
                     boolean canCrit = client.player.fallDistance > 0.0f
                             && !client.player.isOnGround()
                             && !client.player.isClimbing()
@@ -140,13 +133,14 @@ public class LitvaClient implements ClientModInitializer {
                         if (canCrit) {
                             client.interactionManager.attackEntity(client.player, target);
                             client.player.swingHand(Hand.MAIN_HAND);
-                            client.player.fallDistance = 0f; // Сбрасываем, чтобы не закликивало
+                            client.player.fallDistance = 0f;
                         } else if (client.player.isOnGround() && jumpCooldown == 0) {
                             client.player.jump();
                             jumpCooldown = 10;
                         }
                     }
                 } else {
+                    client.options.forwardKey.setPressed(false);
                     if (!triggerEnabled) targetEntity = null;
                 }
             }
@@ -157,31 +151,6 @@ public class LitvaClient implements ClientModInitializer {
                 LitvaHud.render(drawContext); 
             }
         });
-    }
-
-    private static void followTarget(ClientPlayerEntity player, LivingEntity target) {
-        Vec3d toTarget = target.getPos().subtract(player.getPos());
-        double dist = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
-        if (dist < 0.01) return;
-
-        double dirX = toTarget.x / dist;
-        double dirZ = toTarget.z / dist;
-
-        float yawRad = (float) Math.toRadians(player.getYaw());
-        double forwardX = -MathHelper.sin(yawRad);
-        double forwardZ = MathHelper.cos(yawRad);
-        double rightX = MathHelper.cos(yawRad);
-        double rightZ = MathHelper.sin(yawRad);
-
-        float forward = (float) (dirX * forwardX + dirZ * forwardZ);
-        float sideways = (float) (dirX * rightX + dirZ * rightZ);
-
-        player.setForwardSpeed(forward > 0 ? 1.0f : 0f);
-        player.setSidewaysSpeed(sideways);
-
-        if (player.horizontalCollision && player.isOnGround()) {
-            player.jump();
-        }
     }
 
     private boolean isValidTarget(ClientPlayerEntity player, Entity target, boolean hPlayers, boolean hMobs) {

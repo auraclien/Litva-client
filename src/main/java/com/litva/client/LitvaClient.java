@@ -35,14 +35,12 @@ public class LitvaClient implements ClientModInitializer {
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
-    private long lastAttackTime = 0;
 
     @Override
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.world == null) return;
 
-            // Открытие меню
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed && client.currentScreen == null) {
                     client.setScreen(new LitvaMenu());
@@ -52,7 +50,7 @@ public class LitvaClient implements ClientModInitializer {
                 wasRightShiftPressed = false;
             }
 
-            // --- УПРАВЛЕНИЕ HUD СТРЕЛОЧКАМИ В ЧАТЕ (для телефонов) ---
+            // Управление HUD стрелочками в чате
             if (client.currentScreen instanceof ChatScreen) {
                 if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS) hudWatermarkY -= 1;
                 if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS) hudWatermarkY += 1;
@@ -61,9 +59,8 @@ public class LitvaClient implements ClientModInitializer {
             }
 
             boolean isCooldownReady = client.player.getAttackCooldownProgress(0.5f) >= 1.0f;
-            long currentTime = System.currentTimeMillis();
 
-            // --- ЛОГИКА TRIGGERBOT ---
+            // --- TRIGGERBOT ---
             if (triggerEnabled && isCooldownReady) {
                 if (client.crosshairTarget instanceof EntityHitResult hitResult) {
                     Entity target = hitResult.getEntity();
@@ -76,9 +73,9 @@ public class LitvaClient implements ClientModInitializer {
                         }
                         
                         if (onlyCrits) {
-                            // СПУФ КРИТОВ: Отправляем серверу, что мы упали
+                            // ИСПРАВЛЕНО: Добавлен 5-й параметр (false) для версии 1.21.4
                             client.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
-                                    client.player.getX(), client.player.getY() + 0.00001, client.player.getZ(), false));
+                                    client.player.getX(), client.player.getY() + 0.00001, client.player.getZ(), false, false));
                             client.interactionManager.attackEntity(client.player, target);
                             client.player.swingHand(Hand.MAIN_HAND);
                         } else {
@@ -91,7 +88,7 @@ public class LitvaClient implements ClientModInitializer {
                 }
             }
 
-            // --- ЛОГИКА KILLAURA ---
+            // --- KILLAURA ---
             if (killAuraEnabled && isCooldownReady) {
                 Entity closestTarget = null;
                 double closestDist = kaRange;
@@ -115,9 +112,9 @@ public class LitvaClient implements ClientModInitializer {
                     }
 
                     if (kaOnlyCrits) {
-                        // СПУФ КРИТОВ
+                        // ИСПРАВЛЕНО: Добавлен 5-й параметр (false)
                         client.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
-                                client.player.getX(), client.player.getY() + 0.00001, client.player.getZ(), false));
+                                client.player.getX(), client.player.getY() + 0.00001, client.player.getZ(), false, false));
                         client.interactionManager.attackEntity(client.player, closestTarget);
                         client.player.swingHand(Hand.MAIN_HAND);
                     } else {

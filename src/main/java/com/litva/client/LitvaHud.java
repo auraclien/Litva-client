@@ -5,7 +5,8 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.ClientPlayerEntity;
 
 public class LitvaHud {
-    public static void render(DrawContext context, float tickDelta) {
+    // Убрали tickDelta
+    public static void render(DrawContext context) {
         MinecraftClient mc = MinecraftClient.getInstance();
         ClientPlayerEntity player = mc.player;
         if (player == null) return;
@@ -13,7 +14,6 @@ public class LitvaHud {
         int screenWidth = mc.getWindow().getScaledWidth();
         int y = 10;
 
-        // Отрисовка активных модулей (Watermark / Active Modules)
         context.drawTextWithShadow(mc.textRenderer, "Litva Client", 5, 5, 0xFFAA0000);
 
         if (LitvaClient.triggerEnabled) {
@@ -25,7 +25,6 @@ public class LitvaHud {
             y += 12;
         }
 
-        // Координаты, FPS
         String coords = String.format("XYZ: %.1f, %.1f, %.1f", player.getX(), player.getY(), player.getZ());
         String fps = "FPS: " + mc.getCurrentFps();
         

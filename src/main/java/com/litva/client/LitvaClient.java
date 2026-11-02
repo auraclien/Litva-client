@@ -17,24 +17,24 @@ public class LitvaClient implements ClientModInitializer {
     public static boolean hitPlayers = true;
     public static boolean hitMobs = true;
     public static boolean onlyWeapons = false;
+    public static boolean onlyCrits = false;
     
     public static boolean killAuraEnabled = false;
     public static boolean kaHitPlayers = true;
     public static boolean kaHitMobs = true;
     public static boolean kaOnlyWeapons = false;
+    public static boolean kaOnlyCrits = false;
     public static float kaRange = 3.0f;
 
     public static boolean showHud = true;
     public static Entity targetEntity = null;
 
-    // Координаты HUD
     public static int hudWatermarkX = 5, hudWatermarkY = 5;
     public static int hudInfoX = 5, hudInfoY = 300;
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
     
-    // Переменные для перетаскивания HUD
     public static boolean draggingWatermark = false, draggingInfo = false, draggingTarget = false;
     public static double dragOffsetX = 0, dragOffsetY = 0;
 
@@ -43,7 +43,6 @@ public class LitvaClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.world == null) return;
 
-            // Открытие меню
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed && client.currentScreen == null) {
                     client.setScreen(new LitvaMenu());
@@ -53,7 +52,7 @@ public class LitvaClient implements ClientModInitializer {
                 wasRightShiftPressed = false;
             }
 
-            // --- ПЕРЕТАСКИВАНИЕ HUD (РАБОТАЕТ В ЧАТЕ) ---
+            // Перетаскивание HUD в чате
             if (client.currentScreen instanceof ChatScreen) {
                 double mouseX = client.mouse.getX() * (double)client.getWindow().getScaledWidth() / (double)client.getWindow().getWidth();
                 double mouseY = client.mouse.getY() * (double)client.getWindow().getScaledHeight() / (double)client.getWindow().getHeight();
@@ -92,6 +91,7 @@ public class LitvaClient implements ClientModInitializer {
                             if (!itemName.contains("sword") && !itemName.contains("axe")) return;
                         }
                         
+                        // Удар
                         client.interactionManager.attackEntity(client.player, target);
                         client.player.swingHand(Hand.MAIN_HAND);
                     }
@@ -123,10 +123,9 @@ public class LitvaClient implements ClientModInitializer {
                         if (!itemName.contains("sword") && !itemName.contains("axe")) return;
                     }
 
-                    // Пока без критов, просто быстрые удары
+                    // Удар
                     client.interactionManager.attackEntity(client.player, closestTarget);
                     client.player.swingHand(Hand.MAIN_HAND);
-                    
                 } else {
                     if (!triggerEnabled) targetEntity = null;
                 }

@@ -3,7 +3,7 @@ plugins {
 }
 
 version = '1.0.0'
-group = 'com.aura.finalclient'
+group = 'com.litva.client'
 
 repositories {
     mavenCentral()

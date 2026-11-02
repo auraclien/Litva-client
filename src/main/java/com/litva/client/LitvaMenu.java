@@ -1,7 +1,6 @@
 package com.litva.client;
 
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
@@ -25,7 +24,6 @@ public class LitvaMenu extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Рисуем меню
         this.applyBlur();
         context.fill(x, y, x + widthM, y + heightM, 0xEE000000);
         context.drawVerticalLine(x + 100, y + 30, y + heightM, 0xFF333333);
@@ -97,8 +95,6 @@ public class LitvaMenu extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (this instanceof ChatScreen) return super.mouseClicked(mouseX, mouseY, button);
-
         if (mouseX >= x + 10 && mouseX <= x + 90) {
             if (mouseY >= y + 40 && mouseY <= y + 60) selectedTab = 0;
             if (mouseY >= y + 65 && mouseY <= y + 85) selectedTab = 1;

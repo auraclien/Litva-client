@@ -8,7 +8,6 @@ import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import org.lwjgl.glfw.GLFW;
@@ -18,29 +17,33 @@ public class LitvaClient implements ClientModInitializer {
     public static boolean hitPlayers = true;
     public static boolean hitMobs = true;
     public static boolean onlyWeapons = false;
-    public static boolean onlyCrits = false;
     
     public static boolean killAuraEnabled = false;
     public static boolean kaHitPlayers = true;
     public static boolean kaHitMobs = true;
     public static boolean kaOnlyWeapons = false;
-    public static boolean kaOnlyCrits = false;
     public static float kaRange = 3.0f;
 
     public static boolean showHud = true;
     public static Entity targetEntity = null;
 
+    // Координаты HUD
     public static int hudWatermarkX = 5, hudWatermarkY = 5;
     public static int hudInfoX = 5, hudInfoY = 300;
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
+    
+    // Переменные для перетаскивания HUD
+    public static boolean draggingWatermark = false, draggingInfo = false, draggingTarget = false;
+    public static double dragOffsetX = 0, dragOffsetY = 0;
 
     @Override
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.world == null) return;
 
+            // Открытие меню
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed && client.currentScreen == null) {
                     client.setScreen(new LitvaMenu());
@@ -50,11 +53,29 @@ public class LitvaClient implements ClientModInitializer {
                 wasRightShiftPressed = false;
             }
 
+            // --- ПЕРЕТАСКИВАНИЕ HUD (РАБОТАЕТ В ЧАТЕ) ---
             if (client.currentScreen instanceof ChatScreen) {
-                if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS) hudWatermarkY -= 1;
-                if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS) hudWatermarkY += 1;
-                if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS) hudWatermarkX -= 1;
-                if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS) hudWatermarkX += 1;
+                double mouseX = client.mouse.getX() * (double)client.getWindow().getScaledWidth() / (double)client.getWindow().getWidth();
+                double mouseY = client.mouse.getY() * (double)client.getWindow().getScaledHeight() / (double)client.getWindow().getHeight();
+
+                if (GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS) {
+                    if (draggingWatermark) {
+                        hudWatermarkX = (int) (mouseX - dragOffsetX);
+                        hudWatermarkY = (int) (mouseY - dragOffsetY);
+                    }
+                    if (draggingInfo) {
+                        hudInfoX = (int) (mouseX - dragOffsetX);
+                        hudInfoY = (int) (mouseY - dragOffsetY);
+                    }
+                    if (draggingTarget && targetEntity != null) {
+                        hudTargetX = (int) (mouseX - dragOffsetX);
+                        hudTargetY = (int) (mouseY - dragOffsetY);
+                    }
+                } else {
+                    draggingWatermark = false;
+                    draggingInfo = false;
+                    draggingTarget = false;
+                }
             }
 
             boolean isCooldownReady = client.player.getAttackCooldownProgress(0.5f) >= 1.0f;
@@ -71,22 +92,8 @@ public class LitvaClient implements ClientModInitializer {
                             if (!itemName.contains("sword") && !itemName.contains("axe")) return;
                         }
                         
-                        if (onlyCrits) {
-                            // ЖЕСТКИЙ СПУФ (как в Delta): 
-                            // Серверу отправляется пакет, что мы в воздухе, затем пакет, что мы на земле.
-                            double x = client.player.getX();
-                            double y = client.player.getY();
-                            double z = client.player.getZ();
-                            
-                            client.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(x, y + 0.0625, z, false, false));
-                            client.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
-                            
-                            client.interactionManager.attackEntity(client.player, target);
-                            client.player.swingHand(Hand.MAIN_HAND);
-                        } else {
-                            client.interactionManager.attackEntity(client.player, target);
-                            client.player.swingHand(Hand.MAIN_HAND);
-                        }
+                        client.interactionManager.attackEntity(client.player, target);
+                        client.player.swingHand(Hand.MAIN_HAND);
                     }
                 } else {
                     targetEntity = null;
@@ -116,20 +123,10 @@ public class LitvaClient implements ClientModInitializer {
                         if (!itemName.contains("sword") && !itemName.contains("axe")) return;
                     }
 
-                    if (kaOnlyCrits) {
-                        double x = client.player.getX();
-                        double y = client.player.getY();
-                        double z = client.player.getZ();
-                        
-                        client.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(x, y + 0.0625, z, false, false));
-                        client.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
-                        
-                        client.interactionManager.attackEntity(client.player, closestTarget);
-                        client.player.swingHand(Hand.MAIN_HAND);
-                    } else {
-                        client.interactionManager.attackEntity(client.player, closestTarget);
-                        client.player.swingHand(Hand.MAIN_HAND);
-                    }
+                    // Пока без критов, просто быстрые удары
+                    client.interactionManager.attackEntity(client.player, closestTarget);
+                    client.player.swingHand(Hand.MAIN_HAND);
+                    
                 } else {
                     if (!triggerEnabled) targetEntity = null;
                 }
@@ -149,4 +146,4 @@ public class LitvaClient implements ClientModInitializer {
         if (target instanceof LivingEntity) return hMobs;
         return false;
     }
-                                                                              }
+}

@@ -41,6 +41,7 @@ public class LitvaClient implements ClientModInitializer {
 
     private boolean wasRightShiftPressed = false;
     private static int jumpCooldown = 0;
+    private static int attackCooldown = 0;
 
     @Override
     public void onInitializeClient() {
@@ -57,41 +58,43 @@ public class LitvaClient implements ClientModInitializer {
                 wasRightShiftPressed = false;
             }
 
-            if (triggerEnabled) {
-                boolean isCooldownReady = client.player.getAttackCooldownProgress(0.5f) >= 1.0f;
-                if (isCooldownReady) {
-                    if (client.crosshairTarget instanceof EntityHitResult hitResult) {
-                        Entity target = hitResult.getEntity();
-                        targetEntity = target;
+            if (jumpCooldown > 0) jumpCooldown--;
+            if (attackCooldown > 0) attackCooldown--;
+
+            boolean isCooldownReady = client.player.getAttackCooldownProgress(0.5f) >= 1.0f;
+
+            // --- TRIGGERBOT ---
+            if (triggerEnabled && isCooldownReady) {
+                if (client.crosshairTarget instanceof EntityHitResult hitResult) {
+                    Entity target = hitResult.getEntity();
+                    targetEntity = target;
+                    
+                    if (isValidTarget(client.player, target, hitPlayers, hitMobs)) {
+                        if (onlyWeapons) {
+                            String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
+                            if (!itemName.contains("sword") && !itemName.contains("axe")) return;
+                        }
                         
-                        if (isValidTarget(client.player, target, hitPlayers, hitMobs)) {
-                            if (onlyWeapons) {
-                                String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
-                                if (!itemName.contains("sword") && !itemName.contains("axe")) return;
-                            }
-                            
-                            if (onlyCrits) {
-                                if (client.player.fallDistance > 0.0f && !client.player.isOnGround()) {
-                                    client.interactionManager.attackEntity(client.player, target);
-                                    client.player.swingHand(Hand.MAIN_HAND);
-                                } else if (client.player.isOnGround() && jumpCooldown == 0) {
-                                    client.player.jump();
-                                    jumpCooldown = 10;
-                                }
-                            } else {
+                        if (onlyCrits) {
+                            if (client.player.fallDistance > 0.0f && !client.player.isOnGround()) {
                                 client.interactionManager.attackEntity(client.player, target);
                                 client.player.swingHand(Hand.MAIN_HAND);
+                            } else if (client.player.isOnGround() && jumpCooldown == 0) {
+                                client.player.jump();
+                                jumpCooldown = 10;
                             }
+                        } else {
+                            client.interactionManager.attackEntity(client.player, target);
+                            client.player.swingHand(Hand.MAIN_HAND);
                         }
-                    } else {
-                        targetEntity = null;
                     }
+                } else {
+                    targetEntity = null;
                 }
             }
 
+            // --- KILLAURA (SILENT AIM) ---
             if (killAuraEnabled) {
-                if (jumpCooldown > 0) jumpCooldown--;
-                
                 Box searchBox = client.player.getBoundingBox().expand(8.0);
                 List<LivingEntity> targets = client.world.getEntitiesByClass(LivingEntity.class, searchBox,
                         e -> e != client.player && e.isAlive() && !e.isSpectator()
@@ -106,38 +109,40 @@ public class LitvaClient implements ClientModInitializer {
                     double distSq = client.player.squaredDistanceTo(target);
                     double attackRangeSq = kaRange * kaRange;
 
-                    // Наводка
-                    Vec3d aimPoint = target.getPos().add(0, target.getHeight() * 0.85, 0);
-                    Vec3d diff = aimPoint.subtract(client.player.getEyePos());
-                    double distXZ = Math.sqrt(diff.x * diff.x + diff.z * diff.z);
-                    float yaw = (float) (Math.toDegrees(Math.atan2(diff.z, diff.x)) - 90.0);
-                    float pitch = (float) -Math.toDegrees(Math.atan2(diff.y, distXZ));
-                    client.player.setYaw(yaw);
-                    client.player.setPitch(MathHelper.clamp(pitch, -90f, 90f));
-
-                    // Имитация нажатия W (идем вперед)
+                    // Бег за целью (без стопа)
                     if (distSq > attackRangeSq) {
                         client.options.forwardKey.setPressed(true);
                     } else {
                         client.options.forwardKey.setPressed(false);
                     }
 
-                    // Атака
+                    // Прыжок для крита
+                    if (distSq <= attackRangeSq && client.player.isOnGround() && jumpCooldown == 0) {
+                        client.player.jump();
+                        jumpCooldown = 8;
+                    }
+
+                    // Удар с невидимой наводкой
                     boolean canCrit = client.player.fallDistance > 0.0f
                             && !client.player.isOnGround()
                             && !client.player.isClimbing()
                             && !client.player.isTouchingWater()
                             && !client.player.hasVehicle();
 
-                    if (distSq <= attackRangeSq) {
-                        if (canCrit) {
-                            client.interactionManager.attackEntity(client.player, target);
-                            client.player.swingHand(Hand.MAIN_HAND);
-                            client.player.fallDistance = 0f;
-                        } else if (client.player.isOnGround() && jumpCooldown == 0) {
-                            client.player.jump();
-                            jumpCooldown = 10;
-                        }
+                    if (canCrit && distSq <= attackRangeSq && attackCooldown == 0 && isCooldownReady) {
+                        float savedYaw = client.player.getYaw();
+                        float savedPitch = client.player.getPitch();
+
+                        aimServerSide(client.player, target);
+
+                        client.interactionManager.attackEntity(client.player, target);
+                        client.player.swingHand(Hand.MAIN_HAND);
+
+                        client.player.setYaw(savedYaw);
+                        client.player.setPitch(savedPitch);
+
+                        client.player.fallDistance = 0f;
+                        attackCooldown = 10;
                     }
                 } else {
                     client.options.forwardKey.setPressed(false);
@@ -151,6 +156,16 @@ public class LitvaClient implements ClientModInitializer {
                 LitvaHud.render(drawContext); 
             }
         });
+    }
+
+    private void aimServerSide(ClientPlayerEntity player, LivingEntity target) {
+        Vec3d aimPoint = target.getPos().add(0, target.getHeight() * 0.85, 0);
+        Vec3d diff = aimPoint.subtract(player.getEyePos());
+        double distXZ = Math.sqrt(diff.x * diff.x + diff.z * diff.z);
+        float yaw = (float) (Math.toDegrees(Math.atan2(diff.z, diff.x)) - 90.0);
+        float pitch = (float) -Math.toDegrees(Math.atan2(diff.y, distXZ));
+        player.setYaw(yaw);
+        player.setPitch(MathHelper.clamp(pitch, -90f, 90f));
     }
 
     private boolean isValidTarget(ClientPlayerEntity player, Entity target, boolean hPlayers, boolean hMobs) {

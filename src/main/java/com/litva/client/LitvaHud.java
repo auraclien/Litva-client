@@ -13,9 +13,6 @@ public class LitvaHud {
         ClientPlayerEntity player = mc.player;
         if (player == null) return;
 
-        int screenWidth = mc.getWindow().getScaledWidth();
-        int screenHeight = mc.getWindow().getScaledHeight();
-
         // Проверка, открыт ли чат (для перетаскивания)
         boolean isChatOpen = mc.currentScreen instanceof ChatScreen;
 
@@ -58,16 +55,17 @@ public class LitvaHud {
             int x = LitvaClient.hudTargetX;
             int targetY = LitvaClient.hudTargetY;
 
+            // Фон
             context.fill(x, targetY, x + width, targetY + height, 0x88000000);
             if (isChatOpen) context.drawBorder(x, targetY, width, height, 0xFFFFFFFF);
 
-            // Иконка лица
-            if (target instanceof PlayerEntity pTarget) {
-                // Для игроков рисуем скин (упрощенно)
-                context.drawTexture(pTarget.getSkinTextures().texture(), x + 5, targetY + 5, 24, 24, 8, 8, 8, 8, 64, 64);
+            // Иконка (заглушка, чтобы не было ошибок со скинами)
+            if (target instanceof PlayerEntity) {
+                // Рисуем красный квадратик для игрока
+                context.fill(x + 5, targetY + 5, x + 29, targetY + 29, 0xFFAA0000);
             } else {
-                // Для мобов просто иконка
-                context.drawTextWithShadow(mc.textRenderer, "Моб", x + 5, targetY + 10, 0xAAAAAA);
+                // Рисуем зеленый квадратик для моба
+                context.fill(x + 5, targetY + 5, x + 29, targetY + 29, 0xFF00AA00);
             }
 
             // Имя

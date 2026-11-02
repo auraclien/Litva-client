@@ -72,17 +72,15 @@ public class LitvaClient implements ClientModInitializer {
                         }
                         
                         if (onlyCrits) {
-                            // ПАКЕТНЫЙ СПУФ КРИТОВ (Как в Delta)
+                            // ЖЕСТКИЙ СПУФ (как в Delta): 
+                            // Серверу отправляется пакет, что мы в воздухе, затем пакет, что мы на земле.
                             double x = client.player.getX();
                             double y = client.player.getY();
                             double z = client.player.getZ();
                             
-                            // Отправляем пакет "вверх" (фейковый прыжок)
                             client.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(x, y + 0.0625, z, false, false));
-                            // Отправляем пакет "вниз" (фейковое падение)
                             client.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
                             
-                            // Наносим удар
                             client.interactionManager.attackEntity(client.player, target);
                             client.player.swingHand(Hand.MAIN_HAND);
                         } else {
@@ -119,7 +117,6 @@ public class LitvaClient implements ClientModInitializer {
                     }
 
                     if (kaOnlyCrits) {
-                        // ПАКЕТНЫЙ СПУФ КРИТОВ
                         double x = client.player.getX();
                         double y = client.player.getY();
                         double z = client.player.getZ();
@@ -152,4 +149,4 @@ public class LitvaClient implements ClientModInitializer {
         if (target instanceof LivingEntity) return hMobs;
         return false;
     }
-}
+                                                                              }

@@ -26,14 +26,19 @@ public class LitvaClient implements ClientModInitializer {
     public static float kaRange = 3.0f;
 
     public static boolean showHud = true;
+    
+    // Переменная для хранения текущей цели (для HUD)
+    public static Entity targetEntity = null;
 
     private boolean wasRightShiftPressed = false;
+    private int jumpTimer = 0; // Таймер для критов
 
     @Override
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.world == null) return;
 
+            // Открытие меню
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed && client.currentScreen == null) {
                     client.setScreen(new LitvaMenu());
@@ -44,10 +49,14 @@ public class LitvaClient implements ClientModInitializer {
             }
 
             boolean isCooldownReady = client.player.getAttackCooldownProgress(0.5f) >= 1.0f;
+            if (jumpTimer > 0) jumpTimer--;
 
+            // --- ЛОГИКА TRIGGERBOT ---
             if (triggerEnabled && isCooldownReady) {
                 if (client.crosshairTarget instanceof EntityHitResult hitResult) {
                     Entity target = hitResult.getEntity();
+                    targetEntity = target; // Запоминаем для HUD
+                    
                     if (isValidTarget(client.player, target, hitPlayers, hitMobs)) {
                         if (onlyWeapons) {
                             String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
@@ -55,48 +64,67 @@ public class LitvaClient implements ClientModInitializer {
                         }
                         
                         if (onlyCrits) {
-                            if (client.player.fallDistance > 0.1f && !client.player.isOnGround()) {
+                            // Мобильный фикс критов: прыгаем и бьем на следующем тике
+                            if (client.player.isOnGround() && jumpTimer == 0) {
+                                client.player.jump();
+                                jumpTimer = 2; 
+                            } else if (jumpTimer == 1) {
                                 client.interactionManager.attackEntity(client.player, target);
                                 client.player.swingHand(Hand.MAIN_HAND);
-                            } else if (client.player.isOnGround()) {
-                                client.player.jump();
+                                jumpTimer = 0;
                             }
                         } else {
                             client.interactionManager.attackEntity(client.player, target);
                             client.player.swingHand(Hand.MAIN_HAND);
                         }
                     }
+                } else {
+                    targetEntity = null;
                 }
             }
 
+            // --- ЛОГИКА KILLAURA ---
             if (killAuraEnabled && isCooldownReady) {
+                Entity closestTarget = null;
+                double closestDist = kaRange;
+
                 for (Entity entity : client.world.getEntities()) {
                     if (isValidTarget(client.player, entity, kaHitPlayers, kaHitMobs)) {
-                        if (client.player.distanceTo(entity) <= kaRange) {
-                            if (kaOnlyWeapons) {
-                                String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
-                                if (!itemName.contains("sword") && !itemName.contains("axe")) return;
-                            }
-
-                            if (kaOnlyCrits) {
-                                if (client.player.fallDistance > 0.1f && !client.player.isOnGround()) {
-                                    client.interactionManager.attackEntity(client.player, entity);
-                                    client.player.swingHand(Hand.MAIN_HAND);
-                                } else if (client.player.isOnGround()) {
-                                    client.player.jump();
-                                }
-                            } else {
-                                client.interactionManager.attackEntity(client.player, entity);
-                                client.player.swingHand(Hand.MAIN_HAND);
-                            }
-                            break; 
+                        double dist = client.player.distanceTo(entity);
+                        if (dist <= closestDist) {
+                            closestDist = dist;
+                            closestTarget = entity;
                         }
                     }
+                }
+
+                if (closestTarget != null) {
+                    targetEntity = closestTarget; // Запоминаем для HUD
+                    
+                    if (kaOnlyWeapons) {
+                        String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
+                        if (!itemName.contains("sword") && !itemName.contains("axe")) return;
+                    }
+
+                    if (kaOnlyCrits) {
+                        if (client.player.isOnGround() && jumpTimer == 0) {
+                            client.player.jump();
+                            jumpTimer = 2; 
+                        } else if (jumpTimer == 1) {
+                            client.interactionManager.attackEntity(client.player, closestTarget);
+                            client.player.swingHand(Hand.MAIN_HAND);
+                            jumpTimer = 0;
+                        }
+                    } else {
+                        client.interactionManager.attackEntity(client.player, closestTarget);
+                        client.player.swingHand(Hand.MAIN_HAND);
+                    }
+                } else {
+                    if (!triggerEnabled) targetEntity = null;
                 }
             }
         });
 
-        // Исправленный HUD (убрали tickDelta)
         HudRenderCallback.EVENT.register((drawContext, tickDelta) -> {
             if (showHud && MinecraftClient.getInstance().player != null) {
                 LitvaHud.render(drawContext); 

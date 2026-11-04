@@ -17,16 +17,20 @@ import org.lwjgl.glfw.GLFW;
 import java.util.Random;
 
 public class LitvaClient implements ClientModInitializer {
+    // Настройки
     public static boolean triggerEnabled = true;
     public static boolean onlyCrits = true; 
+    
     public static boolean killAuraEnabled = false;
     public static boolean kaHitPlayers = true;
     public static boolean kaHitMobs = true;
+    public static boolean kaOnlyWeapons = false; // Вот та самая переменная, которую ругала игра
     public static float kaRange = 3.0f;
 
     public static boolean showHud = true;
     public static Entity targetEntity = null;
 
+    // Координаты HUD
     public static int hudWatermarkX = 5, hudWatermarkY = 5;
     public static int hudInfoX = 5, hudInfoY = 300;
     public static int hudTargetX = 200, hudTargetY = 200;
@@ -42,7 +46,7 @@ public class LitvaClient implements ClientModInitializer {
             if (client.player == null || client.world == null) return;
             if (client.currentScreen != null) return;
 
-            // Открытие меню
+            // Открытие меню на Right Shift
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed) {
                     client.setScreen(new LitvaMenu());
@@ -100,18 +104,18 @@ public class LitvaClient implements ClientModInitializer {
     private void handleAttack(MinecraftClient client, LivingEntity target) {
         if (attackTimer > 0) return;
 
-        // Если включены криты, нам нужно прыгнуть за 2 тика до удара
+        // Если включены криты, нужно прыгнуть за пару тиков до удара
         if (onlyCrits && client.player.isOnGround() && jumpTimer == 0) {
             client.player.jump();
-            jumpTimer = 10; // Защита от спама прыжков
-            attackTimer = 2; // Ждем 2 тика, чтобы начать падение
+            jumpTimer = 10; 
+            attackTimer = 2; 
             return;
         }
 
-        // Если мы в воздухе (падаем) и таймер прошел - бьем
         if (onlyCrits) {
+            // Бьем только когда падаем (для крита)
             if (!client.player.isOnGround() && client.player.fallDistance > 0.0F) {
-                // 3% шанс промаха (как у человека)
+                // Человеческий фактор: 3% шанс промаха
                 if (random.nextInt(100) < 3) {
                     client.player.setYaw(client.player.getYaw() + (random.nextFloat() - 0.5f) * 10);
                     attackTimer = 5;
@@ -120,7 +124,7 @@ public class LitvaClient implements ClientModInitializer {
                 
                 client.interactionManager.attackEntity(client.player, target);
                 client.player.swingHand(Hand.MAIN_HAND);
-                attackTimer = 10; // Задержка между ударами
+                attackTimer = 10; 
             }
         } else {
             // Обычный удар без критов
@@ -140,7 +144,7 @@ public class LitvaClient implements ClientModInitializer {
         float targetYaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
         float targetPitch = (float) -Math.toDegrees(Math.atan2(dy, distXZ));
 
-        // Человеческий фактор: добавляем немного дрожания (тремора)
+        // Человеческий тремор (чтобы античит не спалил идеальную наводку)
         targetYaw += (random.nextFloat() - 0.5f) * 0.5f;
         targetPitch += (random.nextFloat() - 0.5f) * 0.5f;
 

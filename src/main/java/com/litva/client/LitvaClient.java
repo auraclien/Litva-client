@@ -5,36 +5,24 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.option.KeyBinding;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
-
-import java.util.Comparator;
-import java.util.List;
 
 public class LitvaClient implements ClientModInitializer {
     public static boolean triggerEnabled = true;
     public static boolean hitPlayers = true;
     public static boolean hitMobs = true;
-    public static boolean onlyWeapons = false;
-    public static boolean onlyCrits = false;
+    public static boolean onlyWeapons = true; // По умолчанию бьем только оружием (как в TriggerBot)
     
     public static boolean killAuraEnabled = false;
     public static boolean kaHitPlayers = true;
     public static boolean kaHitMobs = true;
-    public static boolean kaOnlyWeapons = false;
     public static float kaRange = 3.0f;
 
     public static boolean showHud = true;
@@ -45,10 +33,7 @@ public class LitvaClient implements ClientModInitializer {
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
-    
-    // Переменные из кода OpenCode
-    private int attackDelay = 0;
-    private int jumpDelay = 0;
+    private int attackDelay = 0; // Задержка между ударами (как в их коде)
 
     @Override
     public void onInitializeClient() {
@@ -56,6 +41,7 @@ public class LitvaClient implements ClientModInitializer {
             if (client.player == null || client.world == null) return;
             if (client.currentScreen != null) return;
 
+            // Открытие меню
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed) {
                     client.setScreen(new LitvaMenu());
@@ -66,24 +52,31 @@ public class LitvaClient implements ClientModInitializer {
             }
 
             if (attackDelay > 0) attackDelay--;
-            if (jumpDelay > 0) jumpDelay--;
 
             // --- TRIGGERBOT ---
-            if (triggerEnabled) {
-                PlayerEntity target = findTarget(client);
-                if (target != null) {
+            if (triggerEnabled && attackDelay <= 0) {
+                if (client.crosshairTarget instanceof EntityHitResult hitResult) {
+                    Entity target = hitResult.getEntity();
                     targetEntity = target;
-                    if (onlyWeapons) {
-                        String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
-                        if (!itemName.contains("sword") && !itemName.contains("axe")) return;
-                    }
-
-                    if (onlyCrits) {
-                        handleCrits(client, target, client.player);
-                    } else {
-                        if (client.player.getAttackCooldownProgress(0.5f) >= 1.0f) {
-                            client.interactionManager.attackEntity(client.player, target);
-                            client.player.swingHand(Hand.MAIN_HAND);
+                    
+                    if (isValidTarget(client.player, target, hitPlayers, hitMobs)) {
+                        // Проверка на оружие (как в их коде)
+                        if (onlyWeapons) {
+                            String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
+                            if (!itemName.contains("sword") && !itemName.contains("axe") && !itemName.contains("trident")) {
+                                return;
+                            }
+                        }
+                        
+                        // Проверка кулдауна (готовность меча)
+                        float cooldown = client.player.getAttackCooldownProgress(0.5f);
+                        if (cooldown >= 0.9f) {
+                            // Если мы на земле, или падаем (для крита) - бьем
+                            if (client.player.isOnGround() || client.player.fallDistance > 0.0f) {
+                                client.interactionManager.attackEntity(client.player, target);
+                                client.player.swingHand(Hand.MAIN_HAND);
+                                attackDelay = 10; // Задержка 10 тиков (как у них), чтобы не закликивало
+                            }
                         }
                     }
                 } else {
@@ -91,40 +84,35 @@ public class LitvaClient implements ClientModInitializer {
                 }
             }
 
-            // --- KILLAURA (С СИЛЕНТ АИМОМ И КРИТАМИ) ---
-            if (killAuraEnabled) {
-                Box searchBox = client.player.getBoundingBox().expand(8.0);
-                List<LivingEntity> targets = client.world.getEntitiesByClass(LivingEntity.class, searchBox,
-                        e -> e != client.player && e.isAlive() && !e.isSpectator()
-                                && ((e instanceof PlayerEntity && kaHitPlayers) || (e instanceof MobEntity && kaHitMobs)));
+            // --- KILLAURA (Упрощенная версия) ---
+            if (killAuraEnabled && attackDelay <= 0) {
+                LivingEntity closestTarget = null;
+                double closestDist = kaRange;
 
-                LivingEntity target = targets.stream()
-                        .min(Comparator.comparingDouble(e -> e.squaredDistanceTo(client.player)))
-                        .orElse(null);
-
-                if (target != null) {
-                    targetEntity = target;
-                    double distSq = client.player.squaredDistanceTo(target);
-                    double attackRangeSq = kaRange * kaRange;
-
-                    // Бег за целью
-                    if (distSq > attackRangeSq) {
-                        client.options.forwardKey.setPressed(true);
-                    } else {
-                        client.options.forwardKey.setPressed(false);
+                for (Entity entity : client.world.getEntities()) {
+                    if (isValidTarget(client.player, entity, kaHitPlayers, kaHitMobs)) {
+                        double dist = client.player.distanceTo(entity);
+                        if (dist <= closestDist) {
+                            closestDist = dist;
+                            closestTarget = (LivingEntity) entity;
+                        }
                     }
+                }
 
-                    if (kaOnlyWeapons) {
-                        String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
-                        if (!itemName.contains("sword") && !itemName.contains("axe")) return;
-                    }
+                if (closestTarget != null) {
+                    targetEntity = closestTarget;
+                    
+                    // Наводимся
+                    aimSmooth(client.player, closestTarget);
 
-                    if (distSq <= attackRangeSq) {
-                        // Применяем логику критов и наводки
-                        handleCrits(client, target, client.player);
+                    // Бьем
+                    float cooldown = client.player.getAttackCooldownProgress(0.5f);
+                    if (cooldown >= 0.9f && (client.player.isOnGround() || client.player.fallDistance > 0.0f)) {
+                        client.interactionManager.attackEntity(client.player, closestTarget);
+                        client.player.swingHand(Hand.MAIN_HAND);
+                        attackDelay = 10;
                     }
                 } else {
-                    client.options.forwardKey.setPressed(false);
                     if (!triggerEnabled) targetEntity = null;
                 }
             }
@@ -137,81 +125,18 @@ public class LitvaClient implements ClientModInitializer {
         });
     }
 
-    // --- ЛОГИКА КРИТОВ ОТ OPENCODE ---
-    private void handleCrits(MinecraftClient client, LivingEntity target, ClientPlayerEntity player) {
-        if (canCrit(player)) {
-            if (attackDelay <= 0) {
-                // 1. Отключаем спринт
-                stopSprint(client, player);
-                
-                // 2. Делаем невидимую наводку
-                float savedYaw = player.getYaw();
-                float savedPitch = player.getPitch();
-                aimServerSide(player, target);
-                
-                // 3. Бьем
-                client.interactionManager.attackEntity(player, target);
-                player.swingHand(Hand.MAIN_HAND);
-                
-                // 4. Возвращаем камеру
-                player.setYaw(savedYaw);
-                player.setPitch(savedPitch);
+    private void aimSmooth(ClientPlayerEntity player, LivingEntity target) {
+        double dx = target.getX() - player.getX();
+        double dz = target.getZ() - player.getZ();
+        double dy = (target.getY() + target.getHeight() / 2) - (player.getY() + player.getEyeHeight(player.getPose()));
 
-                attackDelay = attackInterval(player);
-            }
-            return;
-        }
+        double distXZ = Math.sqrt(dx * dx + dz * dz);
 
-        // Если бить нельзя (не в падении) - прыгаем
-        if (jumpDelay <= 0 && player.isOnGround()
-                && !player.isTouchingWater() && !player.isInLava()
-                && attackDelay <= 6) {
-            player.jump();
-            jumpDelay = 10;
-        }
-    }
+        float targetYaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+        float targetPitch = (float) -Math.toDegrees(Math.atan2(dy, distXZ));
 
-    private static void stopSprint(MinecraftClient client, ClientPlayerEntity player) {
-        if (!player.isSprinting()) return;
-        player.setSprinting(false);
-        client.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(player, ClientCommandC2SPacket.Mode.STOP_SPRINTING));
-    }
-
-    private static boolean canCrit(ClientPlayerEntity player) {
-        return player.fallDistance > 0.0F
-                && !player.isOnGround()
-                && !player.isClimbing()
-                && !player.isTouchingWater()
-                && !player.hasVehicle()
-                && !player.hasStatusEffect(StatusEffects.BLINDNESS)
-                && !player.hasStatusEffect(StatusEffects.SLOW_FALLING)
-                && !player.hasStatusEffect(StatusEffects.LEVITATION)
-                && player.getAttackCooldownProgress(0.5F) >= 0.9F;
-    }
-
-    private static int attackInterval(ClientPlayerEntity player) {
-        double speed = player.getAttributeValue(EntityAttributes.ATTACK_SPEED);
-        if (speed < 0.1D) speed = 4.0D;
-        return Math.max(1, (int) Math.ceil(20.0D / speed));
-    }
-
-    private void aimServerSide(ClientPlayerEntity player, LivingEntity target) {
-        Vec3d aimPoint = target.getPos().add(0, target.getHeight() * 0.85, 0);
-        Vec3d diff = aimPoint.subtract(player.getEyePos());
-        double distXZ = Math.sqrt(diff.x * diff.x + diff.z * diff.z);
-        float yaw = (float) (Math.toDegrees(Math.atan2(diff.z, diff.x)) - 90.0);
-        float pitch = (float) -Math.toDegrees(Math.atan2(diff.y, distXZ));
-        player.setYaw(yaw);
-        player.setPitch(MathHelper.clamp(pitch, -90f, 90f));
-    }
-
-    private static PlayerEntity findTarget(MinecraftClient client) {
-        HitResult hit = client.crosshairTarget;
-        if (hit == null || hit.getType() != HitResult.Type.ENTITY) return null;
-        Entity entity = ((EntityHitResult) hit).getEntity();
-        if (!(entity instanceof PlayerEntity target)) return null;
-        if (target == client.player || !target.isAlive() || target.isSpectator()) return null;
-        return target;
+        player.setYaw(MathHelper.lerp(0.3f, player.getYaw(), targetYaw));
+        player.setPitch(MathHelper.lerp(0.3f, player.getPitch(), targetPitch));
     }
 
     private boolean isValidTarget(ClientPlayerEntity player, Entity target, boolean hPlayers, boolean hMobs) {

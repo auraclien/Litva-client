@@ -47,9 +47,7 @@ public class LitvaMenu extends Screen {
             if (selectedModule == 0) {
                 drawText(context, "TriggerBot Settings", x + 310, y + 40);
                 drawToggle(context, "Включить", LitvaClient.triggerEnabled, x + 310, y + 60);
-                drawToggle(context, "Бить игроков", LitvaClient.hitPlayers, x + 310, y + 85);
-                drawToggle(context, "Бить мобов", LitvaClient.hitMobs, x + 310, y + 110);
-                drawToggle(context, "Только оружие", LitvaClient.onlyWeapons, x + 310, y + 135);
+                drawToggle(context, "Только криты", LitvaClient.onlyCrits, x + 310, y + 85);
             } else if (selectedModule == 1) {
                 drawText(context, "KillAura Settings", x + 310, y + 40);
                 drawToggle(context, "Включить", LitvaClient.killAuraEnabled, x + 310, y + 60);
@@ -117,9 +115,7 @@ public class LitvaMenu extends Screen {
         if (selectedTab == 0 && button == 0) {
             if (selectedModule == 0) {
                 if (checkBox(mouseX, mouseY, x + 310, y + 60)) LitvaClient.triggerEnabled = !LitvaClient.triggerEnabled;
-                if (checkBox(mouseX, mouseY, x + 310, y + 85)) LitvaClient.hitPlayers = !LitvaClient.hitPlayers;
-                if (checkBox(mouseX, mouseY, x + 310, y + 110)) LitvaClient.hitMobs = !LitvaClient.hitMobs;
-                if (checkBox(mouseX, mouseY, x + 310, y + 135)) LitvaClient.onlyWeapons = !LitvaClient.onlyWeapons;
+                if (checkBox(mouseX, mouseY, x + 310, y + 85)) LitvaClient.onlyCrits = !LitvaClient.onlyCrits;
             } else if (selectedModule == 1) {
                 if (checkBox(mouseX, mouseY, x + 310, y + 60)) LitvaClient.killAuraEnabled = !LitvaClient.killAuraEnabled;
                 if (checkBox(mouseX, mouseY, x + 310, y + 85)) LitvaClient.kaHitPlayers = !LitvaClient.kaHitPlayers;
@@ -159,4 +155,4 @@ public class LitvaMenu extends Screen {
     public boolean shouldPause() {
         return false;
     }
-                             }
+                }

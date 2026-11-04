@@ -11,7 +11,6 @@ import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Hand;
-import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
@@ -76,11 +75,7 @@ public class LitvaClient implements ClientModInitializer {
                 LivingEntity target = findTarget(client);
                 if (target != null) {
                     targetEntity = target;
-                    
-                    // Наводимся (плавно)
-                    aimSmooth(client.player, target);
-                    
-                    // Бьем (быстро)
+                    // Без наводки! Просто бьем, если смотрим на цель.
                     executeCritAttack(client, target);
                 } else {
                     if (!killAuraEnabled) targetEntity = null;
@@ -92,7 +87,6 @@ public class LitvaClient implements ClientModInitializer {
                 LivingEntity target = findClosestTarget(client);
                 if (target != null) {
                     targetEntity = target;
-                    aimSmooth(client.player, target);
                     executeCritAttack(client, target);
                 }
             }
@@ -107,6 +101,12 @@ public class LitvaClient implements ClientModInitializer {
 
     private void executeCritAttack(MinecraftClient client, LivingEntity target) {
         if (client.player == null || client.interactionManager == null) return;
+
+        // ВОЗВРАЩАЕМ ПРОВЕРКУ КУЛДАУНА (чтобы не бил раньше времени)
+        if (client.player.getAttackCooldownProgress(0.5f) < 0.9f) return;
+
+        // Проверка дистанции
+        if (client.player.squaredDistanceTo(target) > 9.0) return; // 3 блока в квадрате
 
         // Если не в прыжке - прыгаем и выходим
         boolean canCrit = !client.player.isOnGround() &&
@@ -137,12 +137,9 @@ public class LitvaClient implements ClientModInitializer {
 
         lastVelocityY = currentVelY;
 
-        // Ждем всего 1 тик после пика (было 2)
+        // Ждем 1 тик после пика
         if (!peakReached || postPeakTicks < 1) return;
 
-        // Наводимся точно в цель перед ударом
-        aimInstant(client.player, target);
-        
         // Бьем
         client.interactionManager.attackEntity(client.player, target);
         client.player.swingHand(Hand.MAIN_HAND);
@@ -165,11 +162,13 @@ public class LitvaClient implements ClientModInitializer {
 
         return targets.stream()
                 .filter(e -> {
+                    // Проверяем, смотрим ли мы на цель (без поворота камеры)
                     Vec3d toTarget = e.getEyePos().subtract(eye).normalize();
                     double dot = look.dotProduct(toTarget);
                     double angle = Math.toDegrees(Math.acos(MathHelper.clamp(dot, -1.0, 1.0)));
-                    if (angle > 60.0) return false;
+                    if (angle > 60.0) return false; // Смотрим в сторону цели
 
+                    // Проверка стен (рейкаст)
                     Vec3d hit = e.getPos().add(0, e.getHeight() * 0.5, 0);
                     var blockHit = client.world.raycast(new RaycastContext(
                             eye, hit,
@@ -198,32 +197,5 @@ public class LitvaClient implements ClientModInitializer {
             }
         }
         return closest;
-    }
-
-    private void aimInstant(ClientPlayerEntity player, LivingEntity target) {
-        Vec3d eye = player.getEyePos();
-        Vec3d aimPoint = target.getPos().add(0, target.getHeight() * 0.85, 0);
-        Vec3d diff = aimPoint.subtract(eye);
-        double distXZ = Math.sqrt(diff.x * diff.x + diff.z * diff.z);
-
-        float yaw = (float) (Math.toDegrees(Math.atan2(diff.z, diff.x)) - 90.0);
-        float pitch = (float) -Math.toDegrees(Math.atan2(diff.y, distXZ));
-
-        player.setYaw(yaw);
-        player.setPitch(MathHelper.clamp(pitch, -90.0f, 90.0f));
-    }
-
-    private void aimSmooth(ClientPlayerEntity player, LivingEntity target) {
-        Vec3d eye = player.getEyePos();
-        Vec3d aimPoint = target.getPos().add(0, target.getHeight() * 0.85, 0);
-        Vec3d diff = aimPoint.subtract(eye);
-        double distXZ = Math.sqrt(diff.x * diff.x + diff.z * diff.z);
-
-        float targetYaw = (float) (Math.toDegrees(Math.atan2(diff.z, diff.x)) - 90.0);
-        float targetPitch = (float) -Math.toDegrees(Math.atan2(diff.y, distXZ));
-
-        // Плавный поворот (можно сделать быстрее, изменив 0.3f на 0.5f)
-        player.setYaw(MathHelper.lerp(0.4f, player.getYaw(), targetYaw));
-        player.setPitch(MathHelper.lerp(0.4f, player.getPitch(), targetPitch));
     }
 }

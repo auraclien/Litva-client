@@ -19,9 +19,8 @@ import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
 
 public class LitvaClient implements ClientModInitializer {
-    // Настройки
     public static boolean triggerEnabled = true;
-    public static boolean onlyCrits = true; // По умолчанию включены криты
+    public static boolean onlyCrits = true; 
     public static boolean killAuraEnabled = false;
     public static boolean kaHitPlayers = true;
     public static boolean kaHitMobs = true;
@@ -36,8 +35,6 @@ public class LitvaClient implements ClientModInitializer {
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
-    
-    // Задержка для KillAura, чтобы не закликивало (в тиках)
     private int kaDelay = 0;
 
     @Override
@@ -46,7 +43,6 @@ public class LitvaClient implements ClientModInitializer {
             if (client.player == null || client.world == null) return;
             if (client.currentScreen != null) return;
 
-            // Открытие меню
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed) {
                     client.setScreen(new LitvaMenu());
@@ -58,7 +54,7 @@ public class LitvaClient implements ClientModInitializer {
 
             if (kaDelay > 0) kaDelay--;
 
-            // --- TRIGGERBOT (Логика от Expensive) ---
+            // --- TRIGGERBOT ---
             if (triggerEnabled && client.crosshairTarget instanceof EntityHitResult hitResult) {
                 if (hitResult.getEntity() instanceof LivingEntity target && target != client.player && canAttack(client, target)) {
                     client.interactionManager.attackEntity(client.player, target);
@@ -86,15 +82,12 @@ public class LitvaClient implements ClientModInitializer {
 
                 if (closestTarget != null) {
                     targetEntity = closestTarget;
-                    
-                    // Наводка
                     aimSmooth(client.player, closestTarget);
 
-                    // Удар
                     if (canAttack(client, closestTarget)) {
                         client.interactionManager.attackEntity(client.player, closestTarget);
                         client.player.swingHand(Hand.MAIN_HAND);
-                        kaDelay = 10; // Задержка 10 тиков (0.5 сек), чтобы не спамить
+                        kaDelay = 10; 
                     }
                 } else {
                     if (!triggerEnabled) targetEntity = null;
@@ -109,7 +102,6 @@ public class LitvaClient implements ClientModInitializer {
         });
     }
 
-    // --- ЛОГИКА АТАКИ ОТ EXPENSIVE ---
     private boolean canAttack(MinecraftClient mc, LivingEntity target) {
         if (target == null || target == mc.player || !target.isAttackable() || target.isDead()) return false;
 
@@ -121,8 +113,7 @@ public class LitvaClient implements ClientModInitializer {
                 || mc.player.isClimbing()
                 || (mc.player.isTouchingWater() && mc.player.isSubmergedIn(FluidTags.WATER))
                 || mc.player.hasVehicle()
-                || mc.player.getAbilities().flying
-                //|| mc.player.isFallFlying();
+                || mc.player.getAbilities().flying;
 
         if (!reasonForAttack && onlyCrits) {
             return !mc.player.isOnGround() && mc.player.fallDistance > 0.0F;

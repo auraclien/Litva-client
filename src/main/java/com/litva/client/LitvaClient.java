@@ -43,6 +43,7 @@ public class LitvaClient implements ClientModInitializer {
             if (client.player == null || client.world == null) return;
             if (client.currentScreen != null) return;
 
+            // Открытие меню
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed) {
                     client.setScreen(new LitvaMenu());
@@ -102,24 +103,22 @@ public class LitvaClient implements ClientModInitializer {
         });
     }
 
+    // Логика атаки
     private boolean canAttack(MinecraftClient mc, LivingEntity target) {
         if (target == null || target == mc.player || !target.isAttackable() || target.isDead()) return false;
 
+        // Проверка на оружие (если включено "Только оружие")
         if (kaOnlyWeapons && !isSwordInHand(mc)) return false;
 
-        if (mc.player.getAttackCooldownProgress(0.5F) < 0.93F) return false;
+        // Проверка кулдауна (снизили до 0.5F, чтобы бот бил чаще)
+        if (mc.player.getAttackCooldownProgress(0.5F) < 0.5F) return false;
 
-        boolean reasonForAttack = mc.player.hasStatusEffect(StatusEffects.BLINDNESS)
-                || mc.player.isClimbing()
-                || (mc.player.isTouchingWater() && mc.player.isSubmergedIn(FluidTags.WATER))
-                || mc.player.hasVehicle()
-                || mc.player.getAbilities().flying;
-
-        if (!reasonForAttack && onlyCrits) {
+        // Если включен режим "Только криты" - бьем только в падении
+        if (onlyCrits) {
             return !mc.player.isOnGround() && mc.player.fallDistance > 0.0F;
         }
 
-        return !reasonForAttack;
+        return true; // Если криты выключены, бьем всегда
     }
 
     private boolean isSwordInHand(MinecraftClient mc) {

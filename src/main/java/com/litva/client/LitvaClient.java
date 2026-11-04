@@ -11,6 +11,7 @@ import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Hand;
+import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
@@ -22,7 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 
 public class LitvaClient implements ClientModInitializer {
-    // Настройки (нужны для меню)
+    // Настройки
     public static boolean triggerEnabled = true;
     public static boolean onlyCrits = true; 
     public static boolean killAuraEnabled = false;
@@ -34,20 +35,17 @@ public class LitvaClient implements ClientModInitializer {
     public static boolean showHud = true;
     public static Entity targetEntity = null;
 
-    // Координаты HUD
     public static int hudWatermarkX = 5, hudWatermarkY = 5;
     public static int hudInfoX = 5, hudInfoY = 300;
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
     
-    // Переменные для критов (физика прыжка)
+    // Физика критов
     private boolean attackedThisJump = false;
     private double lastVelocityY = 0;
     private boolean peakReached = false;
     private int postPeakTicks = 0;
-    private static final int ATTACK_DELAY_TICKS = 2;
-    private static final double REACH = 3.0;
 
     @Override
     public void onInitializeClient() {
@@ -55,7 +53,7 @@ public class LitvaClient implements ClientModInitializer {
             if (client.player == null || client.world == null) return;
             if (client.currentScreen != null) return;
 
-            // Открытие меню
+            // Меню
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed) {
                     client.setScreen(new LitvaMenu());
@@ -78,6 +76,11 @@ public class LitvaClient implements ClientModInitializer {
                 LivingEntity target = findTarget(client);
                 if (target != null) {
                     targetEntity = target;
+                    
+                    // Наводимся (плавно)
+                    aimSmooth(client.player, target);
+                    
+                    // Бьем (быстро)
                     executeCritAttack(client, target);
                 } else {
                     if (!killAuraEnabled) targetEntity = null;
@@ -102,43 +105,24 @@ public class LitvaClient implements ClientModInitializer {
         });
     }
 
-    // --- ЛОГИКА КРИТОВ (От Cat) ---
     private void executeCritAttack(MinecraftClient client, LivingEntity target) {
         if (client.player == null || client.interactionManager == null) return;
 
-        // Проверка кулдауна
-        float cooldown = client.player.getAttackCooldownProgress(0.5F);
-        if (cooldown < 0.9F) return;
-
-        // Проверка дистанции
-        double distanceSq = client.player.squaredDistanceTo(target);
-        if (distanceSq > REACH * REACH) return;
-
-        // Проверка на оружие (если включено)
-        if (kaOnlyWeapons) {
-            String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
-            if (!itemName.contains("sword") && !itemName.contains("axe")) return;
-        }
-
-        // Если стоим на земле - прыгаем и НЕ БЬЕМ (ждем крита)
+        // Если не в прыжке - прыгаем и выходим
         boolean canCrit = !client.player.isOnGround() &&
                           !client.player.isTouchingWater() &&
                           !client.player.isClimbing();
 
         if (!canCrit) {
-            if (client.player.isOnGround() && onlyCrits) {
+            if (client.player.isOnGround()) {
                 client.player.jump();
-            } else if (!onlyCrits) {
-                // Если криты выключены - бьем сразу
-                client.interactionManager.attackEntity(client.player, target);
-                client.player.swingHand(Hand.MAIN_HAND);
             }
             return;
         }
 
         if (attackedThisJump) return;
 
-        // Логика пика прыжка
+        // Физика: ждем пика прыжка
         double currentVelY = client.player.getVelocity().y;
         boolean isPeak = lastVelocityY > 0 && currentVelY <= 0;
 
@@ -153,12 +137,13 @@ public class LitvaClient implements ClientModInitializer {
 
         lastVelocityY = currentVelY;
 
-        // Ждем 2 тика после пика и бьем
-        if (!peakReached || postPeakTicks < ATTACK_DELAY_TICKS) return;
+        // Ждем всего 1 тик после пика (было 2)
+        if (!peakReached || postPeakTicks < 1) return;
 
-        // Наводимся в момент удара (чтобы попасть)
+        // Наводимся точно в цель перед ударом
         aimInstant(client.player, target);
         
+        // Бьем
         client.interactionManager.attackEntity(client.player, target);
         client.player.swingHand(Hand.MAIN_HAND);
         
@@ -167,27 +152,24 @@ public class LitvaClient implements ClientModInitializer {
         postPeakTicks = 0;
     }
 
-    // --- ПОИСК ЦЕЛИ ДЛЯ ТРИГГЕРА (по взгляду и рейкасту) ---
     private LivingEntity findTarget(MinecraftClient client) {
         ClientPlayerEntity player = client.player;
         if (player == null || client.world == null) return null;
 
         Vec3d eye = player.getEyePos();
         Vec3d look = player.getRotationVec(1.0f);
-        Box searchBox = player.getBoundingBox().expand(REACH);
+        Box searchBox = player.getBoundingBox().expand(3.0);
         
         List<LivingEntity> targets = client.world.getEntitiesByClass(LivingEntity.class, searchBox,
                 e -> e != player && e.isAlive() && !e.isSpectator() && !(e instanceof ArmorStandEntity));
 
         return targets.stream()
                 .filter(e -> {
-                    // Проверка, смотрим ли мы на цель (FOV)
                     Vec3d toTarget = e.getEyePos().subtract(eye).normalize();
                     double dot = look.dotProduct(toTarget);
                     double angle = Math.toDegrees(Math.acos(MathHelper.clamp(dot, -1.0, 1.0)));
-                    if (angle > 30.0) return false; // Смотрим прямо на цель
+                    if (angle > 60.0) return false;
 
-                    // Проверка стен
                     Vec3d hit = e.getPos().add(0, e.getHeight() * 0.5, 0);
                     var blockHit = client.world.raycast(new RaycastContext(
                             eye, hit,
@@ -203,15 +185,11 @@ public class LitvaClient implements ClientModInitializer {
                 .orElse(null);
     }
 
-    // --- ПОИСК БЛИЖАЙШЕЙ ЦЕЛИ ДЛЯ KILLAURA ---
     private LivingEntity findClosestTarget(MinecraftClient client) {
         LivingEntity closest = null;
         double closestDist = kaRange;
         for (Entity entity : client.world.getEntities()) {
             if (entity instanceof LivingEntity le && entity != client.player && le.isAlive()) {
-                if (entity instanceof PlayerEntity && !kaHitPlayers) continue;
-                if (entity instanceof MobEntity && !kaHitMobs) continue;
-                
                 double dist = client.player.distanceTo(entity);
                 if (dist <= closestDist) {
                     closestDist = dist;
@@ -244,7 +222,8 @@ public class LitvaClient implements ClientModInitializer {
         float targetYaw = (float) (Math.toDegrees(Math.atan2(diff.z, diff.x)) - 90.0);
         float targetPitch = (float) -Math.toDegrees(Math.atan2(diff.y, distXZ));
 
-        player.setYaw(MathHelper.lerp(0.3f, player.getYaw(), targetYaw));
-        player.setPitch(MathHelper.lerp(0.3f, player.getPitch(), targetPitch));
+        // Плавный поворот (можно сделать быстрее, изменив 0.3f на 0.5f)
+        player.setYaw(MathHelper.lerp(0.4f, player.getYaw(), targetYaw));
+        player.setPitch(MathHelper.lerp(0.4f, player.getPitch(), targetPitch));
     }
-                    }
+}

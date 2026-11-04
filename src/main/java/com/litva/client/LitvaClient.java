@@ -18,22 +18,24 @@ public class LitvaClient implements ClientModInitializer {
     public static boolean triggerEnabled = true;
     public static boolean hitPlayers = true;
     public static boolean hitMobs = true;
-    public static boolean onlyWeapons = true; // По умолчанию бьем только оружием (как в TriggerBot)
+    public static boolean onlyWeapons = true;
     
     public static boolean killAuraEnabled = false;
     public static boolean kaHitPlayers = true;
     public static boolean kaHitMobs = true;
+    public static boolean kaOnlyWeapons = false; // <-- Вот эта переменная вернулась!
     public static float kaRange = 3.0f;
 
     public static boolean showHud = true;
     public static Entity targetEntity = null;
 
+    // Координаты HUD
     public static int hudWatermarkX = 5, hudWatermarkY = 5;
     public static int hudInfoX = 5, hudInfoY = 300;
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
-    private int attackDelay = 0; // Задержка между ударами (как в их коде)
+    private int attackDelay = 0;
 
     @Override
     public void onInitializeClient() {
@@ -41,7 +43,7 @@ public class LitvaClient implements ClientModInitializer {
             if (client.player == null || client.world == null) return;
             if (client.currentScreen != null) return;
 
-            // Открытие меню
+            // Меню на Right Shift
             if (GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) {
                 if (!wasRightShiftPressed) {
                     client.setScreen(new LitvaMenu());
@@ -60,7 +62,6 @@ public class LitvaClient implements ClientModInitializer {
                     targetEntity = target;
                     
                     if (isValidTarget(client.player, target, hitPlayers, hitMobs)) {
-                        // Проверка на оружие (как в их коде)
                         if (onlyWeapons) {
                             String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
                             if (!itemName.contains("sword") && !itemName.contains("axe") && !itemName.contains("trident")) {
@@ -68,14 +69,12 @@ public class LitvaClient implements ClientModInitializer {
                             }
                         }
                         
-                        // Проверка кулдауна (готовность меча)
                         float cooldown = client.player.getAttackCooldownProgress(0.5f);
                         if (cooldown >= 0.9f) {
-                            // Если мы на земле, или падаем (для крита) - бьем
                             if (client.player.isOnGround() || client.player.fallDistance > 0.0f) {
                                 client.interactionManager.attackEntity(client.player, target);
                                 client.player.swingHand(Hand.MAIN_HAND);
-                                attackDelay = 10; // Задержка 10 тиков (как у них), чтобы не закликивало
+                                attackDelay = 10;
                             }
                         }
                     }
@@ -84,7 +83,7 @@ public class LitvaClient implements ClientModInitializer {
                 }
             }
 
-            // --- KILLAURA (Упрощенная версия) ---
+            // --- KILLAURA ---
             if (killAuraEnabled && attackDelay <= 0) {
                 LivingEntity closestTarget = null;
                 double closestDist = kaRange;
@@ -102,10 +101,15 @@ public class LitvaClient implements ClientModInitializer {
                 if (closestTarget != null) {
                     targetEntity = closestTarget;
                     
-                    // Наводимся
                     aimSmooth(client.player, closestTarget);
 
-                    // Бьем
+                    if (kaOnlyWeapons) {
+                        String itemName = client.player.getMainHandStack().getItem().getTranslationKey();
+                        if (!itemName.contains("sword") && !itemName.contains("axe") && !itemName.contains("trident")) {
+                            return;
+                        }
+                    }
+
                     float cooldown = client.player.getAttackCooldownProgress(0.5f);
                     if (cooldown >= 0.9f && (client.player.isOnGround() || client.player.fallDistance > 0.0f)) {
                         client.interactionManager.attackEntity(client.player, closestTarget);

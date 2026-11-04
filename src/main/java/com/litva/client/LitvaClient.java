@@ -122,7 +122,7 @@ public class LitvaClient implements ClientModInitializer {
                 || (mc.player.isTouchingWater() && mc.player.isSubmergedIn(FluidTags.WATER))
                 || mc.player.hasVehicle()
                 || mc.player.getAbilities().flying
-                || mc.player.isFallFlying();
+                //|| mc.player.isFallFlying();
 
         if (!reasonForAttack && onlyCrits) {
             return !mc.player.isOnGround() && mc.player.fallDistance > 0.0F;

@@ -9,14 +9,12 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
+
+import java.util.Random;
 
 public class LitvaClient implements ClientModInitializer {
     public static boolean triggerEnabled = true;
@@ -24,7 +22,6 @@ public class LitvaClient implements ClientModInitializer {
     public static boolean killAuraEnabled = false;
     public static boolean kaHitPlayers = true;
     public static boolean kaHitMobs = true;
-    public static boolean kaOnlyWeapons = true;
     public static float kaRange = 3.0f;
 
     public static boolean showHud = true;
@@ -35,7 +32,9 @@ public class LitvaClient implements ClientModInitializer {
     public static int hudTargetX = 200, hudTargetY = 200;
 
     private boolean wasRightShiftPressed = false;
-    private int kaDelay = 0;
+    private int attackTimer = 0;
+    private int jumpTimer = 0;
+    private final Random random = new Random();
 
     @Override
     public void onInitializeClient() {
@@ -53,18 +52,18 @@ public class LitvaClient implements ClientModInitializer {
                 wasRightShiftPressed = false;
             }
 
-            if (kaDelay > 0) kaDelay--;
+            if (attackTimer > 0) attackTimer--;
+            if (jumpTimer > 0) jumpTimer--;
 
             // --- TRIGGERBOT ---
             if (triggerEnabled && client.crosshairTarget instanceof EntityHitResult hitResult) {
-                if (hitResult.getEntity() instanceof LivingEntity target && target != client.player && canAttack(client, target)) {
-                    client.interactionManager.attackEntity(client.player, target);
-                    client.player.swingHand(Hand.MAIN_HAND);
+                if (hitResult.getEntity() instanceof LivingEntity target && target != client.player) {
+                    handleAttack(client, target);
                 }
             }
 
             // --- KILLAURA ---
-            if (killAuraEnabled && kaDelay <= 0) {
+            if (killAuraEnabled) {
                 LivingEntity closestTarget = null;
                 double closestDist = kaRange;
 
@@ -84,12 +83,7 @@ public class LitvaClient implements ClientModInitializer {
                 if (closestTarget != null) {
                     targetEntity = closestTarget;
                     aimSmooth(client.player, closestTarget);
-
-                    if (canAttack(client, closestTarget)) {
-                        client.interactionManager.attackEntity(client.player, closestTarget);
-                        client.player.swingHand(Hand.MAIN_HAND);
-                        kaDelay = 10; 
-                    }
+                    handleAttack(client, closestTarget);
                 } else {
                     if (!triggerEnabled) targetEntity = null;
                 }
@@ -103,29 +97,37 @@ public class LitvaClient implements ClientModInitializer {
         });
     }
 
-    // Логика атаки
-    private boolean canAttack(MinecraftClient mc, LivingEntity target) {
-        if (target == null || target == mc.player || !target.isAttackable() || target.isDead()) return false;
+    private void handleAttack(MinecraftClient client, LivingEntity target) {
+        if (attackTimer > 0) return;
 
-        // Проверка на оружие (если включено "Только оружие")
-        if (kaOnlyWeapons && !isSwordInHand(mc)) return false;
-
-        // Проверка кулдауна (снизили до 0.5F, чтобы бот бил чаще)
-        if (mc.player.getAttackCooldownProgress(0.5F) < 0.5F) return false;
-
-        // Если включен режим "Только криты" - бьем только в падении
-        if (onlyCrits) {
-            return !mc.player.isOnGround() && mc.player.fallDistance > 0.0F;
+        // Если включены криты, нам нужно прыгнуть за 2 тика до удара
+        if (onlyCrits && client.player.isOnGround() && jumpTimer == 0) {
+            client.player.jump();
+            jumpTimer = 10; // Защита от спама прыжков
+            attackTimer = 2; // Ждем 2 тика, чтобы начать падение
+            return;
         }
 
-        return true; // Если криты выключены, бьем всегда
-    }
-
-    private boolean isSwordInHand(MinecraftClient mc) {
-        ItemStack mainHandItem = mc.player.getMainHandStack();
-        return mainHandItem.getItem() == Items.WOODEN_SWORD || mainHandItem.getItem() == Items.STONE_SWORD
-                || mainHandItem.getItem() == Items.IRON_SWORD || mainHandItem.getItem() == Items.GOLDEN_SWORD
-                || mainHandItem.getItem() == Items.DIAMOND_SWORD || mainHandItem.getItem() == Items.NETHERITE_SWORD;
+        // Если мы в воздухе (падаем) и таймер прошел - бьем
+        if (onlyCrits) {
+            if (!client.player.isOnGround() && client.player.fallDistance > 0.0F) {
+                // 3% шанс промаха (как у человека)
+                if (random.nextInt(100) < 3) {
+                    client.player.setYaw(client.player.getYaw() + (random.nextFloat() - 0.5f) * 10);
+                    attackTimer = 5;
+                    return;
+                }
+                
+                client.interactionManager.attackEntity(client.player, target);
+                client.player.swingHand(Hand.MAIN_HAND);
+                attackTimer = 10; // Задержка между ударами
+            }
+        } else {
+            // Обычный удар без критов
+            client.interactionManager.attackEntity(client.player, target);
+            client.player.swingHand(Hand.MAIN_HAND);
+            attackTimer = 10;
+        }
     }
 
     private void aimSmooth(ClientPlayerEntity player, LivingEntity target) {
@@ -137,6 +139,10 @@ public class LitvaClient implements ClientModInitializer {
 
         float targetYaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
         float targetPitch = (float) -Math.toDegrees(Math.atan2(dy, distXZ));
+
+        // Человеческий фактор: добавляем немного дрожания (тремора)
+        targetYaw += (random.nextFloat() - 0.5f) * 0.5f;
+        targetPitch += (random.nextFloat() - 0.5f) * 0.5f;
 
         player.setYaw(MathHelper.lerp(0.3f, player.getYaw(), targetYaw));
         player.setPitch(MathHelper.lerp(0.3f, player.getPitch(), targetPitch));
